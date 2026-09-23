@@ -1,0 +1,25 @@
+# Credentials and local settings
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Local planning documents and rendering intermediates
+planning/
+.qa/
+
+# Runtime and generated files
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+node_modules/
+dist/
+.DS_Store
+Thumbs.db
+logs/
+dbt_project/target/
+dbt_project/dbt_packages/
+dbt_project/logs/
