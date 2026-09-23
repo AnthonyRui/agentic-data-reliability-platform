@@ -1,0 +1,38 @@
+name: data-reliability
+
+services:
+  postgres:
+    # Official PostgreSQL 17 / Debian Bookworm multi-platform image, pinned by digest.
+    image: postgres:17-bookworm@sha256:639ab7ceb90e13123085b741fb31ef493fba25463002f6da665352e7b534b652
+    environment:
+      POSTGRES_DB: reliability
+      POSTGRES_USER: reliability_admin
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env first}
+      TZ: UTC
+      PGTZ: UTC
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - type: bind
+        source: ./infra/postgres/001_init.sql
+        target: /docker-entrypoint-initdb.d/001_init.sql
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./data/generated
+        target: /seed
+        read_only: true
+        bind:
+          create_host_path: false
+    healthcheck:
+      # TCP targets the final server, not the temporary socket-only init server.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U reliability_admin -d reliability && psql -U reliability_admin -d reliability -tAc 'SELECT ready FROM platform.bootstrap' | grep -qx t"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+volumes:
+  postgres_data:

@@ -1,0 +1,1 @@
+"""Reproducible e-commerce fixtures."""
