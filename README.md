@@ -63,7 +63,7 @@ python scripts/verify_database.py
 
 `docker compose stop` 停止数据库并保留数据，`docker compose start --wait` 恢复。CSV 仅在全新的数据卷首次初始化时导入；更换 CSV 不会重新导入已有数据库。后续提供独立、受控的故障恢复功能，目前不要用重新启动代替重新导入。
 
-本机未安装 Docker；本地只验证了 Python 路径。数据库启动和比对由 [Foundation checks](https://github.com/AnthonyRui/agentic-data-reliability-platform/actions/workflows/foundation.yml) 验证，结果见对应提交和开发日志。若导入中断，健康检查不会误报就绪；请先查看 `docker compose logs postgres`，不要忽略失败继续开发。
+本机未安装 Docker；本地只验证了 Python 路径。2026-09-23 的 [Foundation checks](https://github.com/AnthonyRui/agentic-data-reliability-platform/actions/runs/35908214284) 已在 GitHub Linux 环境通过真实数据库启动及比对，Windows/Linux Python 检查也通过。若导入中断，健康检查不会误报就绪；请先查看 `docker compose logs postgres`，不要忽略失败继续开发。
 
 ## 基础架构
 

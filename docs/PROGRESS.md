@@ -25,7 +25,7 @@ Phase 0 / V1 基础数据阶段。已完成模拟数据生成与数据库启动�
 
 - 本机 Python 3.11 可用，默认 Python 3.6.5 不适用；Node 18.16.0 尚未用于项目。
 - 本机缺少 Docker Engine/Desktop 和 Compose；本机数据库端到端运行未验证。需要安装并启动 Docker 才能在本机使用数据库演示。
-- GitHub 自动检查会验证真实 PostgreSQL 初始化，结果以本次提交的 Actions 为准。
+- GitHub 自动检查已全部通过：Windows/Linux 的格式和 6 项测试，以及真实 PostgreSQL 初始化、健康检查、546 天逐日比对和只读角色权限检查。记录见 [2026-09-23 运行日志](runs/2026-09-23.md)。
 - 暂未进行 AI、dbt、Dagster、MCP、A2A 或故障评估测试。
 
 ## 下一次任务
