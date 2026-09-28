@@ -1,0 +1,15 @@
+reliability:
+  target: local
+  outputs:
+    local:
+      type: postgres
+      host: "{{ env_var('DBT_HOST', '127.0.0.1') }}"
+      port: "{{ env_var('DBT_PORT', '5433') | int }}"
+      user: reliability_admin
+      password: "{{ env_var('DBT_ENV_SECRET_POSTGRES_PASSWORD') }}"
+      dbname: reliability
+      schema: analytics
+      role: reliability_transform
+      threads: 4
+      connect_timeout: 10
+      retries: 1

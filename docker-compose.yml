@@ -21,6 +21,12 @@ services:
         bind:
           create_host_path: false
       - type: bind
+        source: ./infra/postgres/002_transform.sql
+        target: /docker-entrypoint-initdb.d/002_transform.sql
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
         source: ./data/generated
         target: /seed
         read_only: true

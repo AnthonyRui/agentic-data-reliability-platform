@@ -4,7 +4,7 @@
 
 ## 当前状态
 
-Phase 0 进行中：已实现可重复的模拟数据生成器，加入 PostgreSQL 启动配置和自动检查。完整产品、dbt/Dagster 管道与 AI 功能仍待开发，没有评估成绩。
+Phase 0 进行中：已实现模拟数据、PostgreSQL 基础配置与 dbt 数据清洗和营收模型。Dagster 调度、完整产品与 AI 功能仍待开发，没有 AI 评估成绩。验证记录见开发进度。
 
 本项目使用模拟电商数据。未来演示流程为：销售额异常 → 自动调查 → 展示根因与证据 → 提出修复 → 沙箱验证 → 人工批准后导出代码变更。
 
@@ -67,9 +67,35 @@ python scripts/verify_database.py
 
 ## 基础架构
 
-固定配置与随机种子 → 模拟 CSV 和正确值对照 → PostgreSQL 原始表 → SQL 验证。
+固定配置与随机种子 → 模拟 CSV 和正确值对照 → PostgreSQL 原始表 → dbt staging → 销售明细 → 每日营收、地区营收和总览指标 → 独立 Python 对照验证。
 
-后续在此基础上加入 dbt 清洗与指标、Dagster 调度、质量检查、事件页面和 Agent 调查。原始订单表允许未来注入重复或缺失数据；正常基线通过测试检查完整性。只读权限组尚未创建 Agent 登录凭据。
+后续加入 Dagster 调度、质量监控、事件页面和 Agent 调查。原始订单表允许未来注入重复或缺失数据；正常基线通过测试检查完整性。只读权限组尚未创建 Agent 登录凭据。
+
+### 运行数据清洗与指标
+
+在 Python 3.11 虚拟环境安装锁定依赖，并先启动上面的数据库。下列 `python` 应指向该虚拟环境；Windows 可用 `.venv/Scripts/python.exe`，macOS/Linux 可用 `.venv/bin/python`：
+
+```text
+python -m pip install -r requirements-pipeline.txt
+python -m scripts.run_dbt parse
+python -m scripts.run_dbt build
+python -m scripts.verify_models
+```
+
+运行器读取根目录 `.env` 的 `POSTGRES_PASSWORD`（或环境变量 `DBT_ENV_SECRET_POSTGRES_PASSWORD`）。密码不写入 profiles.yml，日志使用 dbt 的 secret 环境变量脱敏。`parse` 只检查配置，`build` 才真正运行模型和测试。当前依赖锁定针对 Python 3.11。
+
+首次启动的新数据库会自动创建转换权限组。若已有上一次版本的数据卷，先执行以下可重复的升级命令（保留已有订单，不重置数据卷）：
+
+```text
+docker compose up -d --wait --wait-timeout 150
+docker compose exec -T postgres psql -U reliability_admin -d reliability -f /docker-entrypoint-initdb.d/002_transform.sql
+```
+
+七个模型写入 `analytics` schema：`stg_orders`、`stg_customers`、`stg_products`、`fact_sales`、`daily_revenue`、`regional_revenue`、`executive_metrics`。dbt 连接后切换为 `reliability_transform`，该权限组只能读取原始数据并在 analytics 中构建；这仍不是生产环境的独立登录隔离。
+
+订单数包括取消订单，收入和客单价只计算完成订单；没有完成订单时收入为 0、客单价为空。总览客户数按整个期间去重，不累加每日客户数。当前只接受 USD，不擅自换算其他币种。缺失关联保留为 NULL 并使测试失败，不静默丢掉订单。
+
+dbt 测试检查唯一值、必填值、关联、币种、金额、汇总一致性，并包含取消订单、四舍五入和 UTC 跨日边界的固定案例。独立验证器从原始 CSV 重新计算三类指标并与真实数据库逐行比较；不使用待测 SQL 自己证明自己正确。
 
 ## 开发检查
 
@@ -84,7 +110,7 @@ python -m unittest discover -s tests -v
 
 ## 已知限制
 
-目前只有基础数据与数据库，不包含网页、dbt、Dagster、故障注入、AI 调查和修复。生成器使用一个 USD 订单对应一个商品的简化模型，包含趋势、周末波动和年度季节性。只读权限组还不是完整 SQL 安全防护。
+目前包含基础数据、数据库和 dbt 转换，不包含网页、Dagster、故障注入、AI 调查和修复。生成器使用一个 USD 订单对应一个商品的简化模型，包含趋势、周末波动和年度季节性。只读权限组还不是完整 SQL 安全防护。
 
 首次初始化失败或更换数据集暂需人工处理，完整的一键启动尚未验收。不包含真实客户数据、账户密钥或虚构测试结果。
 

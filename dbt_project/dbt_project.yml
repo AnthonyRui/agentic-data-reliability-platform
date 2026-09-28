@@ -1,0 +1,16 @@
+name: reliability
+version: '0.1.0'
+config-version: 2
+profile: reliability
+model-paths: [models]
+test-paths: [tests]
+macro-paths: [macros]
+flags:
+  send_anonymous_usage_stats: false
+models:
+  reliability:
+    +materialized: table
+    +grants:
+      select: [reliability_readonly]
+    staging:
+      +materialized: view

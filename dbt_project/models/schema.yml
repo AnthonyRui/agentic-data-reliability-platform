@@ -1,0 +1,101 @@
+version: 2
+sources:
+  - name: raw
+    schema: raw
+    tables:
+      - name: raw_orders
+        description: Synthetic USD orders; one row per order in the healthy baseline.
+      - name: raw_customers
+      - name: raw_products
+
+models:
+  - name: stg_orders
+    description: Standardized order fields; UTC dates; no silently dropped records.
+    columns:
+      - name: order_id
+        data_tests: [not_null, unique]
+      - name: customer_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments: {to: "ref('stg_customers')", field: customer_id}
+      - name: product_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments: {to: "ref('stg_products')", field: product_id}
+      - name: order_date
+        data_tests: [not_null]
+      - name: order_amount
+        data_tests: [not_null]
+      - name: currency
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments: {values: [USD]}
+      - name: status
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments: {values: [completed, cancelled]}
+  - name: stg_customers
+    columns:
+      - name: customer_id
+        data_tests: [not_null, unique]
+      - name: region
+        data_tests: [not_null]
+  - name: stg_products
+    columns:
+      - name: product_id
+        data_tests: [not_null, unique]
+  - name: fact_sales
+    columns:
+      - name: order_id
+        data_tests: [not_null, unique]
+      - name: region
+        data_tests: [not_null]
+      - name: category
+        data_tests: [not_null]
+  - name: daily_revenue
+    description: All orders per UTC day, completed-only USD revenue and AOV; AOV is null without completed orders.
+    columns:
+      - name: order_date
+        data_tests: [not_null, unique]
+      - name: revenue_usd
+        data_tests: [not_null]
+  - name: regional_revenue
+    description: One row per UTC date and region.
+    columns:
+      - name: order_date
+        data_tests: [not_null]
+      - name: region
+        data_tests: [not_null]
+  - name: executive_metrics
+    description: Whole-dataset totals with completed-only revenue and distinct customers.
+    columns:
+      - name: revenue_usd
+        data_tests: [not_null]
+
+unit_tests:
+  - name: daily_revenue_excludes_cancelled_and_handles_zero_completed
+    model: daily_revenue
+    given:
+      - input: ref('fact_sales')
+        rows:
+          - {order_date: '2025-01-01', customer_id: 1, order_amount: 10.01, status: completed}
+          - {order_date: '2025-01-01', customer_id: 1, order_amount: 20.00, status: completed}
+          - {order_date: '2025-01-01', customer_id: 2, order_amount: 999.00, status: cancelled}
+          - {order_date: '2025-01-02', customer_id: 3, order_amount: 25.00, status: cancelled}
+    expect:
+      rows:
+        - {order_date: '2025-01-01', orders: 3, completed_orders: 2, customers: 1, revenue_usd: 30.01, aov_usd: 15.01}
+        - {order_date: '2025-01-02', orders: 1, completed_orders: 0, customers: 0, revenue_usd: 0.00, aov_usd: null}
+  - name: staging_uses_utc_calendar_boundary
+    model: stg_orders
+    given:
+      - input: source('raw', 'raw_orders')
+        rows:
+          - {order_id: 1, customer_id: 1, product_id: 1, order_ts: '2025-01-01 23:30:00-06:00', amount: 10.00, currency: ' usd ', status: ' Completed '}
+    expect:
+      rows:
+        - {order_id: 1, order_date: '2025-01-02', order_amount: 10.00, currency: USD, status: completed}
