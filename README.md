@@ -4,7 +4,7 @@
 
 ## 当前状态
 
-Phase 0 进行中：已实现模拟数据、PostgreSQL 基础配置与 dbt 数据清洗和营收模型。[9 月 28 日自动检查](https://github.com/AnthonyRui/agentic-data-reliability-platform/actions/runs/36460283492) 已通过真实数据库构建和指标比对。已接入 Dagster 手动任务与运行记录，正在验证完整启动流程；定时数据调度、完整产品与 AI 功能仍待开发，没有 AI 评估成绩。
+正常数据管道已接通：模拟数据、PostgreSQL、dbt 和 Dagster 可通过一条命令运行并保存历史。[9 月 30 日自动检查](https://github.com/AnthonyRui/agentic-data-reliability-platform/actions/runs/36763722041) 已通过 Windows/Linux 检查、真实数据库两轮运行和历史验收。完整产品、定时数据调度与 AI 功能仍待开发，没有 AI 评估成绩。
 
 本项目使用模拟电商数据。未来演示流程为：销售额异常 → 自动调查 → 展示根因与证据 → 提出修复 → 沙箱验证 → 人工批准后导出代码变更。
 
