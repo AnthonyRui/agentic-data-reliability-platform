@@ -4,7 +4,7 @@
 
 ## 当前状态
 
-Phase 0 进行中：已实现模拟数据、PostgreSQL 基础配置与 dbt 数据清洗和营收模型。[9 月 28 日自动检查](https://github.com/AnthonyRui/agentic-data-reliability-platform/actions/runs/36460283492) 已通过真实数据库构建和指标比对。Dagster 调度、完整产品与 AI 功能仍待开发，没有 AI 评估成绩。
+Phase 0 进行中：已实现模拟数据、PostgreSQL 基础配置与 dbt 数据清洗和营收模型。[9 月 28 日自动检查](https://github.com/AnthonyRui/agentic-data-reliability-platform/actions/runs/36460283492) 已通过真实数据库构建和指标比对。已接入 Dagster 手动任务与运行记录，正在验证完整启动流程；定时数据调度、完整产品与 AI 功能仍待开发，没有 AI 评估成绩。
 
 本项目使用模拟电商数据。未来演示流程为：销售额异常 → 自动调查 → 展示根因与证据 → 提出修复 → 沙箱验证 → 人工批准后导出代码变更。
 
@@ -40,7 +40,7 @@ Phase 0 进行中：已实现模拟数据、PostgreSQL 基础配置与 dbt 数�
 
 ```powershell
 py -3.11 -m data.generator.generate
-py -3.11 -m unittest discover -s tests -v
+py -3.11 -m unittest discover -s tests -p test_generator.py -v
 ```
 
 macOS/Linux 将 `py -3.11` 换成 `python3.11`。Windows 上不要直接使用旧版 `python`；本次环境中的默认版本是 3.6.5。
@@ -69,7 +69,7 @@ python scripts/verify_database.py
 
 固定配置与随机种子 → 模拟 CSV 和正确值对照 → PostgreSQL 原始表 → dbt staging → 销售明细 → 每日营收、地区营收和总览指标 → 独立 Python 对照验证。
 
-后续加入 Dagster 调度、质量监控、事件页面和 Agent 调查。原始订单表允许未来注入重复或缺失数据；正常基线通过测试检查完整性。只读权限组尚未创建 Agent 登录凭据。
+Dagster 已串联上述步骤；后续加入定时数据调度、质量监控、事件页面和 Agent 调查。原始订单表允许未来注入重复或缺失数据；正常基线通过测试检查完整性。只读权限组尚未创建 Agent 登录凭据。
 
 ### 运行数据清洗与指标
 
@@ -100,7 +100,7 @@ dbt 测试检查唯一值、必填值、关联、币种、金额、汇总一致�
 ## 开发检查
 
 ```text
-python -m pip install -r requirements-dev.txt
+python -m pip install -r requirements-dev.txt -r requirements-pipeline.txt
 python -m ruff check .
 python -m ruff format --check .
 python -m unittest discover -s tests -v
@@ -110,8 +110,31 @@ python -m unittest discover -s tests -v
 
 ## 已知限制
 
-目前包含基础数据、数据库和 dbt 转换，不包含网页、Dagster、故障注入、AI 调查和修复。生成器使用一个 USD 订单对应一个商品的简化模型，包含趋势、周末波动和年度季节性。只读权限组还不是完整 SQL 安全防护。
+目前包含基础数据、数据库、dbt 转换和 Dagster 手动任务，不包含网页、故障注入、AI 调查和修复。生成器使用一个 USD 订单对应一个商品的简化模型，包含趋势、周末波动和年度季节性。只读权限组还不是完整 SQL 安全防护。
 
-首次初始化失败或更换数据集暂需人工处理，完整的一键启动尚未验收。不包含真实客户数据、账户密钥或虚构测试结果。
+首次初始化失败或更换数据集暂需人工处理。不包含真实客户数据、账户密钥或虚构测试结果。
 
 参考：[PostgreSQL COPY](https://www.postgresql.org/docs/17/sql-copy.html)、[官方 PostgreSQL 镜像](https://hub.docker.com/_/postgres)、[Compose 启动和健康检查](https://docs.docker.com/compose/how-tos/startup-order/)。
+
+### 一条命令运行完整管道
+
+前提：Python 3.11 虚拟环境已安装 `requirements-pipeline.txt`，Docker 正常运行，根目录 `.env` 已填写本地密码。在项目根目录运行：
+
+```text
+python -m scripts.run_pipeline
+```
+
+命令会生成或校验模拟数据、启动数据库、升级转换权限，然后通过 Dagster 检查原始数据、执行 dbt 和比对最终指标。已有 CSV 不会被覆盖；数据库保留已有数据。原始数据验证失败时，下游计算不会执行，进程返回失败。启动前失败与 Dagster 任务失败分别记录，不假装成功。
+
+运行记录存储在 `.local/dagster/`，每次任务另有 `.local/runs/` JSON 摘要，均不上传仓库。`.local/pipeline.lock` 防止命令并发；意外退出遗留锁时，必须确认旧进程已经结束再移除。启动阶段的错误发生在 Dagster 任务创建之前。
+
+`python -m scripts.run_pipeline --check` 只解析 dbt 和验证 Dagster 定义，不需要 Docker，但仍需要配置密码变量。它不代表数据库验收通过。
+
+查看本地运行历史（PowerShell，已激活虚拟环境）：
+
+```powershell
+$env:DAGSTER_HOME = Join-Path (Get-Location) '.local/dagster'
+dagster dev -m dagster_project.definitions -h 127.0.0.1
+```
+
+先完成一次管道运行以创建存储和 manifest，再打开本机 `http://127.0.0.1:3000`。当前任务按需执行，尚未配置 Dagster 定时器；每周三次的开发自动任务与数据调度是两回事。
