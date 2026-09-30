@@ -1,5 +1,5 @@
 import os
-import sys
+import sysconfig
 from pathlib import Path
 
 import dagster as dg
@@ -49,7 +49,7 @@ def build_definitions() -> dg.Definitions:
                 project_dir=PROJECT,
                 profiles_dir=PROJECT,
                 dbt_executable=str(
-                    Path(sys.executable).with_name("dbt.exe" if os.name == "nt" else "dbt")
+                    Path(sysconfig.get_path("scripts")) / ("dbt.exe" if os.name == "nt" else "dbt")
                 ),
             )
         },
