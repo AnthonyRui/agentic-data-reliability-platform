@@ -50,6 +50,14 @@ jobs:
         run: python -m scripts.run_pipeline
       - name: Verify persisted Dagster run history
         run: python -m scripts.verify_pipeline_runs
+      - name: F03 isolated duplicate fault and recovery
+        run: python -m scripts.run_fault_demo --copies 3
+      - name: Real database fault isolation and failure cleanup tests
+        env:
+          RUN_POSTGRES_TESTS: '1'
+        run: python -m unittest discover -s tests -p test_fault_demo.py -v
+      - name: Verify source baseline after fault experiments
+        run: python -m scripts.verify_database
       - name: Startup diagnostics
         if: failure()
         run: docker compose logs --no-color postgres

@@ -1,6 +1,7 @@
 -c requirements-pipeline.lock
 dbt-core==1.12.5
 dbt-postgres==1.11.0
+psycopg2-binary==2.9.13
 dagster==1.13.24
 dagster-dbt==0.29.24
 dagster-webserver==1.13.24
