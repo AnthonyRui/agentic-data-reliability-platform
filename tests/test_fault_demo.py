@@ -4,10 +4,19 @@ from unittest.mock import patch
 
 import psycopg2
 
-from scripts.run_fault_demo import detect, fingerprint, run_scenario
+from scripts.null_fault import run_null_scenario
+from scripts.run_fault_demo import detect, fingerprint, main, run_scenario
 
 
 class FaultBoundaryTests(unittest.TestCase):
+    def test_null_scenario_rejects_duplicate_parameter_before_connecting(self):
+        with patch("sys.argv", ["demo", "--scenario", "F02", "--copies", "3"]):
+            with patch("scripts.run_fault_demo.prepare_environment") as prepare:
+                with self.assertRaises(SystemExit) as error:
+                    main()
+                self.assertEqual(error.exception.code, 2)
+                prepare.assert_not_called()
+
     def test_unapproved_identifiers_rejected_before_query(self):
         for schema, table in [("public", "orders"), ("raw", "raw_orders; DROP TABLE x")]:
             with self.assertRaises(ValueError):
@@ -31,6 +40,60 @@ class PostgresFaultTests(unittest.TestCase):
             connect_timeout=10,
         )
         self.addCleanup(self.connection.close)
+
+    def test_null_amounts_detected_and_recovered_reproducibly(self):
+        first = run_null_scenario(self.connection)
+        second = run_null_scenario(self.connection)
+        self.assertEqual(first.affected_rows, (first.before.rows * 3 + 9) // 10)
+        self.assertEqual(first.fault.null_amounts, first.affected_rows)
+        self.assertEqual(first.observed_revenue_loss, first.expected_revenue_loss)
+        self.assertGreater(first.observed_revenue_loss, 0)
+        self.assertEqual(first.fault.null_amount_samples, second.fault.null_amount_samples)
+        self.assertEqual(first.expected_revenue_loss, second.expected_revenue_loss)
+        self.assertEqual(first.restored.null_amounts, 0)
+        self.assertEqual(first.restored.revenue_usd, first.before.revenue_usd)
+        self.assertEqual(first.source_fingerprint_before, first.source_fingerprint_after)
+        with self.connection.cursor() as cursor:
+            cursor.execute("SELECT to_regclass('pg_temp.f02_orders')")
+            self.assertIsNone(cursor.fetchone()[0])
+
+    def test_null_detection_counts_cancelled_but_excludes_cancelled_revenue(self):
+        with self.connection.cursor() as cursor:
+            cursor.execute(
+                "CREATE TEMP TABLE f02_orders (order_id bigint, amount numeric, status text)"
+            )
+            cursor.execute("""INSERT INTO pg_temp.f02_orders VALUES
+                (1, 12.34, 'completed'), (2, NULL, 'completed'),
+                (3, NULL, 'cancelled'), (4, 999, 'cancelled')""")
+            evidence = detect(cursor, "pg_temp", "f02_orders")
+            self.assertEqual(str(evidence.revenue_usd), "12.34")
+            self.assertEqual(evidence.null_amounts, 2)
+            self.assertEqual(
+                evidence.null_amount_samples,
+                [{"order_id": 2, "status": "completed"}, {"order_id": 3, "status": "cancelled"}],
+            )
+        self.connection.rollback()
+
+    def test_null_detector_failure_cleans_up_and_preserves_source(self):
+        with self.connection.cursor() as cursor:
+            original = fingerprint(cursor)
+        self.connection.rollback()
+        calls = 0
+
+        def fail_after_injection(*args):
+            nonlocal calls
+            calls += 1
+            if calls == 2:
+                raise RuntimeError("forced null detector failure")
+            return detect(*args)
+
+        with patch("scripts.null_fault.detect", side_effect=fail_after_injection):
+            with self.assertRaisesRegex(RuntimeError, "forced null detector failure"):
+                run_null_scenario(self.connection)
+        with self.connection.cursor() as cursor:
+            self.assertEqual(fingerprint(cursor), original)
+            cursor.execute("SELECT to_regclass('pg_temp.f02_orders')")
+            self.assertIsNone(cursor.fetchone()[0])
 
     def test_real_duplicate_impact_recovery_and_repeatability(self):
         for copies in [1, 3]:

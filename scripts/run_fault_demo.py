@@ -17,7 +17,7 @@ from scripts.run_dbt import prepare_environment
 from scripts.run_pipeline import pipeline_lock
 
 ROOT = Path(__file__).resolve().parents[1]
-ALLOWED_TABLES = {("raw", "raw_orders"), ("pg_temp", "f03_orders")}
+ALLOWED_TABLES = {("raw", "raw_orders"), ("pg_temp", "f03_orders"), ("pg_temp", "f02_orders")}
 
 
 class QualityEvidence(BaseModel):
@@ -29,6 +29,8 @@ class QualityEvidence(BaseModel):
     null_ids: int = Field(ge=0)
     revenue_usd: Decimal
     duplicate_samples: list[dict]
+    null_amounts: int = Field(ge=0)
+    null_amount_samples: list[dict]
 
 
 class FaultReport(BaseModel):
@@ -55,24 +57,30 @@ def detect(cursor, schema: str, table: str) -> QualityEvidence:
     relation = sql.Identifier(schema, table)
     statement = sql.SQL("""SELECT count(*), count(order_id) - count(DISTINCT order_id),
         count(*) FILTER (WHERE order_id IS NULL),
-        coalesce(sum(amount) FILTER (WHERE status = 'completed'), 0)
+        coalesce(sum(amount) FILTER (WHERE status = 'completed'), 0),
+        count(*) FILTER (WHERE amount IS NULL)
         FROM {}""").format(relation)
     cursor.execute(statement)
-    rows, excess, nulls, revenue = cursor.fetchone()
+    rows, excess, nulls, revenue, null_amounts = cursor.fetchone()
     samples = sql.SQL("""SELECT order_id, count(*) FROM {} WHERE order_id IS NOT NULL
         GROUP BY order_id HAVING count(*) > 1 ORDER BY order_id LIMIT 10""").format(relation)
     cursor.execute(samples)
+    duplicates = [{"order_id": key, "occurrences": count} for key, count in cursor.fetchall()]
+    null_query = sql.SQL("""SELECT order_id, status FROM {} WHERE amount IS NULL
+        ORDER BY order_id LIMIT 10""").format(relation)
+    cursor.execute(null_query)
+    null_samples = [{"order_id": key, "status": status} for key, status in cursor.fetchall()]
     return QualityEvidence(
         observed_at=datetime.now(timezone.utc).isoformat(),
         relation=f"{schema}.{table}",
-        query=statement.as_string(cursor) + ";\n" + samples.as_string(cursor),
+        query=";\n".join(q.as_string(cursor) for q in (statement, samples, null_query)),
         rows=rows,
         duplicate_excess=excess,
         null_ids=nulls,
         revenue_usd=revenue,
-        duplicate_samples=[
-            {"order_id": key, "occurrences": count} for key, count in cursor.fetchall()
-        ],
+        duplicate_samples=duplicates,
+        null_amounts=null_amounts,
+        null_amount_samples=null_samples,
     )
 
 
@@ -103,7 +111,7 @@ def run_scenario(connection, copies: int) -> FaultReport:
                 "CREATE TEMP TABLE f03_orders ON COMMIT DROP AS SELECT * FROM raw.raw_orders"
             )
             before = detect(cursor, "pg_temp", "f03_orders")
-            if before.duplicate_excess or before.null_ids:
+            if before.duplicate_excess or before.null_ids or before.null_amounts:
                 raise ValueError("F03 requires a healthy baseline with unique, non-null order IDs")
             cursor.execute("""SELECT order_id, amount FROM pg_temp.f03_orders
                 WHERE status = 'completed' AND amount > 0 ORDER BY order_id LIMIT 1""")
@@ -159,8 +167,11 @@ def run_scenario(connection, copies: int) -> FaultReport:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--copies", type=int, default=3, choices=range(1, 101), metavar="1..100")
+    parser.add_argument("--scenario", choices=["F02", "F03"], default="F03")
+    parser.add_argument("--copies", type=int, choices=range(1, 101), metavar="1..100")
     args = parser.parse_args()
+    if args.scenario == "F02" and args.copies is not None:
+        parser.error("--copies applies only to F03")
     prepare_environment()
     # This demo deliberately targets the documented local Compose database only.
     with pipeline_lock(ROOT / ".local/pipeline.lock"):
@@ -174,7 +185,12 @@ def main() -> int:
             application_name="reliability_f03_sandbox",
         )
         try:
-            report = run_scenario(connection, args.copies)
+            if args.scenario == "F02":
+                from scripts.null_fault import run_null_scenario
+
+                report = run_null_scenario(connection)
+            else:
+                report = run_scenario(connection, args.copies or 3)
         finally:
             connection.close()
         output = ROOT / ".local/fault-runs"
@@ -188,7 +204,7 @@ def main() -> int:
             json.dumps(
                 {
                     "event": "sandbox_fault_recovered",
-                    "scenario": "F03",
+                    "scenario": report.scenario,
                     "run_id": report.run_id,
                     "report": str(path),
                 }

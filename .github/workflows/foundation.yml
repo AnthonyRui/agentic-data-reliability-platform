@@ -52,6 +52,8 @@ jobs:
         run: python -m scripts.verify_pipeline_runs
       - name: F03 isolated duplicate fault and recovery
         run: python -m scripts.run_fault_demo --copies 3
+      - name: F02 missing amounts and recovery
+        run: python -m scripts.run_fault_demo --scenario F02
       - name: Real database fault isolation and failure cleanup tests
         env:
           RUN_POSTGRES_TESTS: '1'
