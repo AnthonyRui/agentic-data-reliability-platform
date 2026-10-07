@@ -168,3 +168,5 @@ python -m scripts.run_fault_demo --scenario F02
 正常/异常/恢复的 SQL、计数、精确金额和原始表指纹同样保存到 `.local/fault-runs/` 和终端日志。新增 `null_amounts` 与 `null_amount_samples` 字段也用于 F03 报告。F02 不接受 `--copies`，该选项仅用于重复订单场景。
 
 F02/F03 目前均为临时表级验证，尚不驱动 dbt 下游故障、自动事件或页面。F01 字段改名仍待实现；它的实际失败行为必须单独验证。没有 AI 调用或自动修复生产数据。
+
+[10 月 7 日验收结果](https://github.com/AnthonyRui/agentic-data-reliability-platform/actions/runs/37692806223)：F02/F03、取消订单金额语义、失败清理、源表基线及 Windows/Linux 检查全部通过。
