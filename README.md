@@ -184,3 +184,5 @@ python -m scripts.run_fault_demo --scenario F01
 这是实际 PostgreSQL 查询级的隔离演示，没有改动正常 dbt 模型或生产数据；完整下游失败传播、自动异常事件和页面尚未接通。它也不是 F01 修复建议、沙箱补丁和人工审批闭环。
 
 数据库镜像使用 [Docker 在 ECR Public 发布的官方镜像](https://gallery.ecr.aws/docker/library/postgres)，固定摘要保持不变。2026-10-09 因 Docker Hub 匿名下载限额改用此来源；已核对 manifest SHA256 与原锁定值相同，不升级数据库或更换数据卷。
+
+[10 月 9 日验收](https://github.com/AnthonyRui/agentic-data-reliability-platform/actions/runs/37990609711) 已验证 F01 实际返回 42703、回滚恢复、拒绝源表 ALTER，并通过 F02/F03 和完整正常管道回归。
