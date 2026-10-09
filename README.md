@@ -182,3 +182,5 @@ python -m scripts.run_fault_demo --scenario F01
 预期失败查询使用内层保存点恢复事务，随后撤销临时表改名并再次运行原查询，核对行数与收入。所有路径最终回滚并关闭专用连接；报告同时核对原始表结构和内容指纹。未知错误仍使命令失败，不包装为已恢复。F01 不接受 `--copies`。
 
 这是实际 PostgreSQL 查询级的隔离演示，没有改动正常 dbt 模型或生产数据；完整下游失败传播、自动异常事件和页面尚未接通。它也不是 F01 修复建议、沙箱补丁和人工审批闭环。
+
+数据库镜像使用 [Docker 在 ECR Public 发布的官方镜像](https://gallery.ecr.aws/docker/library/postgres)，固定摘要保持不变。2026-10-09 因 Docker Hub 匿名下载限额改用此来源；已核对 manifest SHA256 与原锁定值相同，不升级数据库或更换数据卷。
