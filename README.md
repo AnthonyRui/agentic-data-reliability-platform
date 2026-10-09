@@ -167,6 +167,18 @@ python -m scripts.run_fault_demo --scenario F02
 
 正常/异常/恢复的 SQL、计数、精确金额和原始表指纹同样保存到 `.local/fault-runs/` 和终端日志。新增 `null_amounts` 与 `null_amount_samples` 字段也用于 F03 报告。F02 不接受 `--copies`，该选项仅用于重复订单场景。
 
-F02/F03 目前均为临时表级验证，尚不驱动 dbt 下游故障、自动事件或页面。F01 字段改名仍待实现；它的实际失败行为必须单独验证。没有 AI 调用或自动修复生产数据。
+F02/F03 目前均为临时表级验证，尚不驱动 dbt 下游故障、自动事件或页面。F01 字段改名的独立验证入口见下文。没有 AI 调用或自动修复生产数据。
 
 [10 月 7 日验收结果](https://github.com/AnthonyRui/agentic-data-reliability-platform/actions/runs/37692806223)：F02/F03、取消订单金额语义、失败清理、源表基线及 Windows/Linux 检查全部通过。
+
+### F01：金额字段改名与真实查询失败
+
+```text
+python -m scripts.run_fault_demo --scenario F01
+```
+
+正常管道启动后，此命令在本次连接的临时表里把 `amount` 改名为 `order_amount_usd`，读取 PostgreSQL 实际字段结构，并执行仍引用 `amount` 的收入查询。报告保留改名前/故障/恢复的结构、SQL、实际错误码与错误消息；查询失败时收入为“不可计算”（JSON null），不显示成 0 或声称发生 NULL 激增。
+
+预期失败查询使用内层保存点恢复事务，随后撤销临时表改名并再次运行原查询，核对行数与收入。所有路径最终回滚并关闭专用连接；报告同时核对原始表结构和内容指纹。未知错误仍使命令失败，不包装为已恢复。F01 不接受 `--copies`。
+
+这是实际 PostgreSQL 查询级的隔离演示，没有改动正常 dbt 模型或生产数据；完整下游失败传播、自动异常事件和页面尚未接通。它也不是 F01 修复建议、沙箱补丁和人工审批闭环。

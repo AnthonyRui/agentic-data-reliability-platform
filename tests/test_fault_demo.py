@@ -6,9 +6,14 @@ import psycopg2
 
 from scripts.null_fault import run_null_scenario
 from scripts.run_fault_demo import detect, fingerprint, main, run_scenario
+from scripts.schema_fault import inspect_schema, run_schema_scenario
 
 
 class FaultBoundaryTests(unittest.TestCase):
+    def test_schema_inspection_rejects_unknown_target(self):
+        with self.assertRaises(ValueError):
+            inspect_schema(None, "raw.raw_orders; DROP TABLE x")
+
     def test_null_scenario_rejects_duplicate_parameter_before_connecting(self):
         with patch("sys.argv", ["demo", "--scenario", "F02", "--copies", "3"]):
             with patch("scripts.run_fault_demo.prepare_environment") as prepare:
@@ -40,6 +45,58 @@ class PostgresFaultTests(unittest.TestCase):
             connect_timeout=10,
         )
         self.addCleanup(self.connection.close)
+
+    def test_renamed_amount_causes_real_query_error_and_recovers(self):
+        for _ in range(2):
+            report = run_schema_scenario(self.connection)
+            self.assertEqual(report.missing_columns, ["amount"])
+            self.assertEqual(report.added_columns, ["order_amount_usd"])
+            self.assertEqual(report.fault_query.status, "error")
+            self.assertEqual(report.fault_query.sqlstate, "42703")
+            self.assertIn("amount", report.fault_query.error)
+            self.assertIsNone(report.fault_query.revenue_usd)
+            self.assertIsNone(report.fault_query.rows)
+            self.assertEqual(report.before.columns, report.restored.columns)
+            self.assertEqual(report.before_query.revenue_usd, report.restored_query.revenue_usd)
+            self.assertEqual(report.source_fingerprint_before, report.source_fingerprint_after)
+            with self.connection.cursor() as cursor:
+                cursor.execute("SELECT to_regclass('pg_temp.f01_orders')")
+                self.assertIsNone(cursor.fetchone()[0])
+            self.connection.rollback()
+
+    def test_schema_inspection_failure_after_rename_cleans_up(self):
+        with self.connection.cursor() as cursor:
+            original = fingerprint(cursor)
+            original_schema = inspect_schema(cursor, "raw.raw_orders")
+        self.connection.rollback()
+        calls = 0
+
+        def fail_after_rename(*args):
+            nonlocal calls
+            calls += 1
+            if calls == 3:
+                raise RuntimeError("forced schema inspection failure")
+            return inspect_schema(*args)
+
+        with patch("scripts.schema_fault.inspect_schema", side_effect=fail_after_rename):
+            with self.assertRaisesRegex(RuntimeError, "forced schema inspection failure"):
+                run_schema_scenario(self.connection)
+        with self.connection.cursor() as cursor:
+            self.assertEqual(fingerprint(cursor), original)
+            self.assertEqual(
+                inspect_schema(cursor, "raw.raw_orders").columns, original_schema.columns
+            )
+            cursor.execute("SELECT to_regclass('pg_temp.f01_orders')")
+            self.assertIsNone(cursor.fetchone()[0])
+
+    def test_database_denies_source_schema_change_under_demo_role(self):
+        with self.connection.cursor() as cursor:
+            cursor.execute("SET LOCAL ROLE reliability_readonly")
+            with self.assertRaises(psycopg2.errors.InsufficientPrivilege):
+                cursor.execute(
+                    "ALTER TABLE raw.raw_orders RENAME COLUMN amount TO forbidden_amount"
+                )
+        self.connection.rollback()
 
     def test_null_amounts_detected_and_recovered_reproducibly(self):
         first = run_null_scenario(self.connection)

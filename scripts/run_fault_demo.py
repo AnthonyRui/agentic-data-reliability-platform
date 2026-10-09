@@ -1,4 +1,4 @@
-"""F03: inject, detect and roll back duplicate orders in session-local tables only."""
+"""Inject, observe and roll back F01/F02/F03 in session-local tables only."""
 
 import argparse
 import json
@@ -167,10 +167,10 @@ def run_scenario(connection, copies: int) -> FaultReport:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--scenario", choices=["F02", "F03"], default="F03")
+    parser.add_argument("--scenario", choices=["F01", "F02", "F03"], default="F03")
     parser.add_argument("--copies", type=int, choices=range(1, 101), metavar="1..100")
     args = parser.parse_args()
-    if args.scenario == "F02" and args.copies is not None:
+    if args.scenario != "F03" and args.copies is not None:
         parser.error("--copies applies only to F03")
     prepare_environment()
     # This demo deliberately targets the documented local Compose database only.
@@ -182,10 +182,14 @@ def main() -> int:
             user="reliability_admin",
             password=os.environ["DBT_ENV_SECRET_POSTGRES_PASSWORD"],
             connect_timeout=10,
-            application_name="reliability_f03_sandbox",
+            application_name="reliability_fault_sandbox",
         )
         try:
-            if args.scenario == "F02":
+            if args.scenario == "F01":
+                from scripts.schema_fault import run_schema_scenario
+
+                report = run_schema_scenario(connection)
+            elif args.scenario == "F02":
                 from scripts.null_fault import run_null_scenario
 
                 report = run_null_scenario(connection)
