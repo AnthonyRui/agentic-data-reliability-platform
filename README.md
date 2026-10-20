@@ -186,3 +186,20 @@ python -m scripts.run_fault_demo --scenario F01
 数据库镜像使用 [Docker 在 ECR Public 发布的官方镜像](https://gallery.ecr.aws/docker/library/postgres)，固定摘要保持不变。2026-10-09 因 Docker Hub 匿名下载限额改用此来源；已核对 manifest SHA256 与原锁定值相同，不升级数据库或更换数据卷。
 
 [10 月 9 日验收](https://github.com/AnthonyRui/agentic-data-reliability-platform/actions/runs/37990609711) 已验证 F01 实际返回 42703、回滚恢复、拒绝源表 ALTER，并通过 F02/F03 和完整正常管道回归。
+
+### 异常事件与只读监控
+
+启动正常管道后，在同一个虚拟环境运行：
+
+```text
+python -m scripts.monitor
+python -m scripts.incidents
+```
+
+监控固定检查本机 Compose 的 `raw.raw_orders` 字段结构、缺失金额和重复订单。它使用只读事务、只读权限组、15 秒语句超时及一致性快照；检测不修改源数据。全部通过返回 0，异常或检查不可用返回 1。连接/查询失败记为 unknown，不会自动关闭已有异常。
+
+事件和原始观测证据保存于 `.local/incidents.sqlite3`，不上传 GitHub。同一范围、数据表和检查只有一个未恢复事件；重复失败增加观测次数，通过后标记恢复，再次失败建立新的事件。每条观测都有唯一 ID；完全相同的重放不重复写入，ID 相同但内容不同或时间倒退会拒绝，整批事务回滚。
+
+三个故障演示命令在成功完成后自动把正常、故障、恢复的真实报告阶段写入事件库。每次沙箱运行使用独立范围，不能关闭真实源表的异常；它们是报告完成后的历史记录，并非故障发生时的实时监控。中途失败的沙箱报告还没有接入事件。
+
+`python -m scripts.incidents` 输出事件及关联 SQL/计数/结构证据。当前为本地命令行存储，尚未接入 Dagster 自动执行、页面、邮件或消息通知。真实源表监控与沙箱演示明确分开，不能把源表健康误当成沙箱故障未发生。

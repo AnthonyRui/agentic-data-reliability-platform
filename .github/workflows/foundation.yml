@@ -56,6 +56,12 @@ jobs:
         run: python -m scripts.run_fault_demo --scenario F02
       - name: F01 renamed amount query failure and recovery
         run: python -m scripts.run_fault_demo --scenario F01
+      - name: Read-only source monitoring twice
+        run: |
+          python -m scripts.monitor
+          python -m scripts.monitor
+      - name: Persisted incidents and idempotent replay
+        run: python -m scripts.verify_incidents
       - name: Real database fault isolation and failure cleanup tests
         env:
           RUN_POSTGRES_TESTS: '1'

@@ -202,6 +202,9 @@ def main() -> int:
         path = output / f"{report.run_id}.json"
         with path.open("x", encoding="utf-8") as handle:
             handle.write(report.model_dump_json(indent=2) + "\n")
+        from scripts.incidents import record_fault_report
+
+        record_fault_report(report)
         # Keep actual SQL and observed values in CI logs as well as the local report.
         print(report.model_dump_json())
         print(
