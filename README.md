@@ -203,3 +203,5 @@ python -m scripts.incidents
 三个故障演示命令在成功完成后自动把正常、故障、恢复的真实报告阶段写入事件库。每次沙箱运行使用独立范围，不能关闭真实源表的异常；它们是报告完成后的历史记录，并非故障发生时的实时监控。中途失败的沙箱报告还没有接入事件。
 
 `python -m scripts.incidents` 输出事件及关联 SQL/计数/结构证据。当前为本地命令行存储，尚未接入 Dagster 自动执行、页面、邮件或消息通知。真实源表监控与沙箱演示明确分开，不能把源表健康误当成沙箱故障未发生。
+
+[10 月 19 日事件验收](https://github.com/AnthonyRui/agentic-data-reliability-platform/actions/runs/39416673919)：真实三类故障各生成一个已恢复事件，重放不增加记录，两次源表只读监控通过，Windows/Linux 检查通过。
