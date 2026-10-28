@@ -94,3 +94,5 @@ Phase 0 / V1 正常管道集成阶段。已实现 Dagster 资产、持久运行�
 - 尚未实现按时自动启动的数据定时器、页面与完整下游调查。V1 已明显落后原计划；不发布未验收版本，不调整最终期限或必选范围。
 - 下一步：最小事件列表/详情页面、基础影响关系；随后补齐端到端三类故障调查验收。
 - 本轮记录见 [运行日志](runs/2026-10-28.md)。
+
+- 10 月 28 日结果：[Windows/Linux 通过，数据库验收被阻塞](https://github.com/AnthonyRui/agentic-data-reliability-platform/actions/runs/40782250000)。ECR Public 镜像下载两次返回 Data limit exceeded，本轮新流程未完成真实数据库验收。下一轮首先补验收，不能将开发提交等同交付。
