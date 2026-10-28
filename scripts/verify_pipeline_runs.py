@@ -6,6 +6,8 @@ from pathlib import Path
 
 import dagster as dg
 
+from scripts.incidents import history
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -15,6 +17,7 @@ def main() -> None:
         raise ValueError("Expected at least two completed pipeline run receipts")
     os.environ.setdefault("DAGSTER_HOME", str(ROOT / ".local/dagster"))
     required = {
+        "source_quality",
         "raw/raw_customers",
         "raw/raw_products",
         "raw/raw_orders",
@@ -27,6 +30,7 @@ def main() -> None:
         "executive_metrics",
         "verified_metrics",
     }
+    stored = {item["id"]: item for item in history()["observations"]}
     with dg.DagsterInstance.get() as instance:
         for path in paths:
             receipt = json.loads(path.read_text(encoding="utf-8"))
@@ -39,6 +43,14 @@ def main() -> None:
                 raise ValueError("Pipeline did not materialize the complete expected asset graph")
             if not receipt["asset_checks"] or not all(c["passed"] for c in receipt["asset_checks"]):
                 raise ValueError("dbt asset checks were missing or failed")
+            for check in ["schema", "missing_amount", "duplicate_order"]:
+                item = stored.get(f"{receipt['run_id']}:{check}")
+                if (
+                    not item
+                    or item["scope"] != "local-compose"
+                    or item["payload"]["state"] != "pass"
+                ):
+                    raise ValueError("Run is missing successful persisted source checks")
     print(json.dumps({"event": "run_history_verified", "runs": len(paths)}))
 
 

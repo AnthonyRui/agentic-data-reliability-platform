@@ -41,7 +41,10 @@ class PipelineTests(unittest.TestCase):
             called.append(True)
 
         with patch("dagster_project.assets.verify_raw", side_effect=ValueError("bad source")):
-            result = dg.materialize([validated_sources, downstream], raise_on_error=False)
+            result = dg.materialize(
+                [dg.AssetSpec("source_quality"), validated_sources, downstream],
+                raise_on_error=False,
+            )
         self.assertFalse(result.success)
         self.assertEqual(called, [])
         self.assertEqual(len(result.get_asset_materialization_events()), 0)

@@ -3,11 +3,12 @@
 import json
 import os
 from datetime import datetime, timezone
+from pathlib import Path
 from uuid import uuid4
 
 import psycopg2
 
-from scripts.incidents import Observation, record
+from scripts.incidents import DEFAULT_STORE, Observation, record
 from scripts.run_dbt import prepare_environment
 from scripts.run_fault_demo import detect
 from scripts.schema_fault import inspect_schema
@@ -89,9 +90,9 @@ def collect(connection, run_id: str) -> list[Observation]:
         connection.rollback()
 
 
-def main() -> int:
+def run_monitor(run_id: str | None = None, store_path: Path = DEFAULT_STORE) -> list[Observation]:
     prepare_environment()
-    run_id = str(uuid4())
+    run_id = run_id or str(uuid4())
     try:
         connection = psycopg2.connect(
             host="127.0.0.1",
@@ -109,7 +110,13 @@ def main() -> int:
             items = collect(connection, run_id)
         finally:
             connection.close()
-    record(items)
+    record(items, store_path)
+    return items
+
+
+def main() -> int:
+    run_id = str(uuid4())
+    items = run_monitor(run_id)
     print(
         json.dumps({"run_id": run_id, "checks": [item.model_dump(mode="json") for item in items]})
     )
