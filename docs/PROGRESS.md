@@ -96,3 +96,5 @@ Phase 0 / V1 正常管道集成阶段。已实现 Dagster 资产、持久运行�
 - 本轮记录见 [运行日志](runs/2026-10-28.md)。
 
 - 10 月 28 日结果：[Windows/Linux 通过，数据库验收被阻塞](https://github.com/AnthonyRui/agentic-data-reliability-platform/actions/runs/40782250000)。ECR Public 镜像下载两次返回 Data limit exceeded，本轮新流程未完成真实数据库验收。下一轮首先补验收，不能将开发提交等同交付。
+
+- 10 月 28 日用户要求修复下载问题：恢复同摘要的 Docker Hub 镜像并新增 CI 镜像缓存，兼容 Docker 两种镜像存储标识。[完整 CI 已通过](https://github.com/AnthonyRui/agentic-data-reliability-platform/actions/runs/40814260913)，本轮管道前置检查的数据库验收已补齐。下一步继续页面与完整调查，V1 仍未完成。
