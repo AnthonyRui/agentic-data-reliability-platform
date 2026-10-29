@@ -63,9 +63,14 @@ jobs:
             docker pull --platform linux/amd64 "$upstream"
             docker tag "$upstream" "$POSTGRES_IMAGE"
           fi
-          expected='sha256:248efd5e58cd743f2a0e0daec8ea4649e5580145ec2a12e2345bc710d4a77201'
           actual=$(docker image inspect --format '{{.Id}}' "$POSTGRES_IMAGE")
-          test "$actual" = "$expected"
+          echo "Loaded image identity: $actual"
+          # Docker's classic and containerd stores expose different content IDs.
+          # These are the pinned index, its linux/amd64 manifest and that manifest's config.
+          case "$actual" in
+            sha256:639ab7ceb90e13123085b741fb31ef493fba25463002f6da665352e7b534b652|sha256:91eb910c44c7ed13f7f1a4ccadaa9ca72ef14cddc04cacb6e070e48eb44731a3|sha256:248efd5e58cd743f2a0e0daec8ea4649e5580145ec2a12e2345bc710d4a77201) ;;
+            *) echo 'Unexpected PostgreSQL image identity'; exit 1 ;;
+          esac
           if [ "$CACHE_HIT" != "true" ]; then
             mkdir -p .local/image-cache
             docker save --output .local/image-cache/postgres.tar "$POSTGRES_IMAGE"
