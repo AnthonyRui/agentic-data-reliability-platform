@@ -1,0 +1,8 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>数据可靠性 · 事件中心</title><link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script></head>
+<body><header><span class="mark">DR</span><div><strong>数据可靠性</strong><small>DATA RELIABILITY PLATFORM</small></div><span class="local">本机 · 只读</span></header>
+<main><div class="intro"><div><p class="eyebrow">INCIDENT CENTER</p><h1>每个异常，都有据可查。</h1><p>查看检查发现的问题、恢复时间与原始证据。</p></div><button id="refresh">刷新记录</button></div>
+<p class="notice">这里展示已保存的检查记录，不代表实时健康状态。沙箱演示与真实源表分开标注；此页面不会执行修复。</p>
+<div class="toolbar"><label>数据范围 <select id="scope"><option value="all">全部范围</option><option value="source">真实源表</option><option value="sandbox">沙箱演示</option></select></label><label>事件状态 <select id="status"><option value="all">全部状态</option><option value="open">未恢复</option><option value="resolved">已恢复</option></select></label><span id="count">读取中…</span></div>
+<p id="error" role="alert" hidden></p><section class="workspace"><div class="list-panel"><h2>异常事件</h2><div id="list" aria-live="polite"></div><nav><button id="prev">上一页</button><span id="page"></span><button id="next">下一页</button></nav></div><section id="detail" aria-live="polite"><div class="empty"><h2>选择一个事件</h2><p>查看检测时间、状态变化和 SQL 证据。</p></div></section></section>
+<footer>开发中的本地事件查看器 · 未包含 AI 根因结论、修复审批或生产控制</footer></main></body></html>
